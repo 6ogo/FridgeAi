@@ -4,11 +4,13 @@ import 'dart:io';
 import 'results_page.dart';
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
   @override
-  _HomePageState createState() => _HomePageState();
+  HomePageState createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
   File? _image;
 
   Future<void> _pickImage() async {
@@ -33,7 +35,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Fridge Recipe App'),
+        title: const Text('Fridge Recipe App'),
       ),
       body: Center(
         child: Column(
