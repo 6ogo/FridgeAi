@@ -29,13 +29,12 @@ class ApiService {
             'content': [
               {
                 'type': 'text',
-                'text': 'List all the ingredients you can see in this image. Return only a comma-separated list of ingredient names, nothing else.'
+                'text':
+                    'List all the ingredients you can see in this image. Return only a comma-separated list of ingredient names, nothing else.'
               },
               {
                 'type': 'image',
-                'image_url': {
-                  'url': 'data:image/jpeg;base64,$base64Image'
-                }
+                'image_url': {'url': 'data:image/jpeg;base64,$base64Image'}
               }
             ]
           }
@@ -70,8 +69,11 @@ class ApiService {
       'ingredients': ingredients.join(','),
       'apiKey': apiKey,
       'number': '10',
-      'ranking': '2', // Maximize used ingredients
-      'ignorePantry': 'true'
+      'ranking': '2',
+      'ignorePantry': 'true',
+      // Added parameters
+      'limitLicense': 'false',
+      'instructionsRequired': 'true',
     };
 
     final uri = Uri.parse(apiUrl).replace(queryParameters: queryParams);
@@ -86,12 +88,43 @@ class ApiService {
 
   static Future<Map<String, dynamic>> fetchRecipeDetails(int recipeId) async {
     final apiKey = dotenv.env['SPOONACULAR_API_KEY'];
-    
+
     if (apiKey == null) {
       throw Exception('SPOONACULAR_API_KEY not found in environment variables');
     }
 
-    final uri = Uri.parse('https://api.spoonacular.com/recipes/$recipeId/information')
+    final queryParams = {
+      'apiKey': apiKey,
+      // Added parameters for additional information
+      'includeNutrition': 'true',
+      'addWinePairing': 'true',
+      'includeTaste': 'true',
+    };
+
+    final uri =
+        Uri.parse('https://api.spoonacular.com/recipes/$recipeId/information')
+            .replace(queryParameters: queryParams);
+
+    final response = await http.get(uri);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data;
+    } else {
+      throw Exception('Failed to fetch recipe details: ${response.body}');
+    }
+  }
+
+  // New method to get nutritional information
+  static Future<Map<String, dynamic>> fetchNutritionalInfo(int recipeId) async {
+    final apiKey = dotenv.env['SPOONACULAR_API_KEY'];
+
+    if (apiKey == null) {
+      throw Exception('SPOONACULAR_API_KEY not found in environment variables');
+    }
+
+    final uri = Uri.parse(
+            'https://api.spoonacular.com/recipes/$recipeId/nutritionWidget.json')
         .replace(queryParameters: {'apiKey': apiKey});
 
     final response = await http.get(uri);
@@ -99,7 +132,8 @@ class ApiService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Failed to fetch recipe details: ${response.body}');
+      throw Exception(
+          'Failed to fetch nutritional information: ${response.body}');
     }
   }
 }
