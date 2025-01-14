@@ -14,6 +14,38 @@ class HomePage extends StatefulWidget {
 class HomePageState extends State<HomePage> {
   File? _image;
   bool _isProcessing = false;
+  
+  Widget buildLoadingState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text(
+            'Analyzing your ingredients...',
+            style: TextStyle(fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Retry',
+          onPressed: _showImageSourceDialog,
+          textColor: Colors.white,
+        ),
+      ),
+    );
+  }
 
   Future<void> _getImage(ImageSource source) async {
     try {
