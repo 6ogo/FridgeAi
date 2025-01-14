@@ -6,13 +6,13 @@ import 'recipe_details_page.dart';
 class ResultsPage extends StatefulWidget {
   final File image;
 
-  ResultsPage({required this.image});
+  const ResultsPage({super.key, required this.image});
 
   @override
-  _ResultsPageState createState() => _ResultsPageState();
+  ResultsPageState createState() => ResultsPageState();
 }
 
-class _ResultsPageState extends State<ResultsPage> {
+class ResultsPageState extends State<ResultsPage> {
   List<String>? ingredients;
   List<dynamic>? recipes;
   bool isLoading = true;
@@ -52,8 +52,8 @@ class _ResultsPageState extends State<ResultsPage> {
                     itemBuilder: (context, index) {
                       final recipe = recipes![index];
                       return ListTile(
-                        title: Text(recipe['title']),
-                        subtitle: Text('Ingredients: ${recipe['usedIngredients'].join(", ")}'),
+                        title: Text(recipe['label']),
+                        subtitle: Text('Ingredients: ${recipe['ingredientLines'].join(", ")}'),
                         onTap: () {
                           Navigator.push(
                             context,
