@@ -5,7 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
   static Future<List<String>> analyzeImage(File imageFile) async {
-    const apiUrl = 'https://api.groq.com/v1/chat/completions';
+    const apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
     final apiKey = dotenv.env['GROQ_API_KEY'];
 
     if (apiKey == null) {
