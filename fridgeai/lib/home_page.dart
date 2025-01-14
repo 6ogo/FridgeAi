@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'results_page.dart';
+import 'api_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,15 +22,22 @@ class HomePageState extends State<HomePage> {
       setState(() {
         _image = File(pickedFile.path);
       });
-      // Ensure the widget is still mounted before navigating
-      if (!mounted) return;
-      // Navigate to the results page with the selected image
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ResultsPage(image: _image!),
-        ),
-      );
+
+      // Send the image to the Groq API
+      final ingredients = await ApiService.analyzeImage(_image!);
+
+      // Fetch recipes using the detected ingredients
+      final recipes = await ApiService.fetchRecipes(ingredients);
+
+      // Check if the widget is still mounted before navigating
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ResultsPage(recipes: recipes),
+          ),
+        );
+      }
     }
   }
 
