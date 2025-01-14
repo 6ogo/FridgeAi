@@ -14,6 +14,43 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
   Map<String, dynamic>? recipe;
   Map<String, dynamic>? nutritionInfo;
   bool isLoading = true;
+  // Track completed steps
+  Set<int> completedSteps = {};
+
+  // Map of equipment names to their corresponding icons
+  final Map<String, IconData> equipmentIcons = {
+    'oven': Icons.microwave,
+    'pan': Icons.soup_kitchen,
+    'bowl': Icons.coffee,
+    'knife': Icons.cut,
+    'cutting board': Icons.grid_on,
+    'spoon': Icons.soup_kitchen,
+    'fork': Icons.restaurant_menu,
+    'whisk': Icons.egg,
+    'blender': Icons.blender,
+    'grater': Icons.foundation,
+    'pot': Icons.soup_kitchen,
+    'baking sheet': Icons.rectangle_outlined,
+    'measuring cups': Icons.local_drink,
+    'measuring spoons': Icons.coffee_maker,
+    'food processor': Icons.blender,
+    'colander': Icons.filter_alt,
+    'peeler': Icons.content_cut,
+    'spatula': Icons.space_bar,
+    'tongs': Icons.content_cut,
+  };
+
+  // Get the most appropriate icon for equipment
+  IconData getEquipmentIcon(String equipmentName) {
+    String lowercaseName = equipmentName.toLowerCase();
+    for (var entry in equipmentIcons.entries) {
+      if (lowercaseName.contains(entry.key)) {
+        return entry.value;
+      }
+    }
+    return Icons.kitchen; // Default icon
+  }
+
 
   @override
   void initState() {
