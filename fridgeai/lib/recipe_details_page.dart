@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 
 class RecipeDetailsPage extends StatefulWidget {
@@ -10,7 +12,7 @@ class RecipeDetailsPage extends StatefulWidget {
   RecipeDetailsPageState createState() => RecipeDetailsPageState();
 }
 
-class RecipeDetailsPageState extends State<RecipeDetailsPage> {
+class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProviderStateMixin {
   Map<String, dynamic>? recipe;
   Map<String, dynamic>? nutritionInfo;
   bool isLoading = true;
@@ -39,6 +41,7 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
     'spatula': Icons.space_bar,
     'tongs': Icons.content_cut,
   };
+  late final AnimationController _animationController;
 
   // Get the most appropriate icon for equipment
   IconData getEquipmentIcon(String equipmentName) {
@@ -51,11 +54,63 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
     return Icons.kitchen; // Default icon
   }
 
-
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _loadCompletedSteps();
     _fetchAllRecipeData();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+// Load completed steps from SharedPreferences
+  Future<void> _loadCompletedSteps() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedSteps =
+        prefs.getStringList('completed_steps_${widget.recipeId}');
+    if (savedSteps != null) {
+      setState(() {
+        completedSteps = savedSteps.map((s) => int.parse(s)).toSet();
+      });
+    }
+  }
+
+// Save completed steps to SharedPreferences
+  Future<void> _saveCompletedSteps() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      'completed_steps_${widget.recipeId}',
+      completedSteps.map((s) => s.toString()).toList(),
+    );
+  }
+
+// Toggle step completion with animation and haptic feedback
+  void _toggleStepCompletion(int index) async {
+    // Haptic feedback
+    await HapticFeedback.mediumImpact();
+
+    setState(() {
+      if (completedSteps.contains(index)) {
+        completedSteps.remove(index);
+      } else {
+        completedSteps.add(index);
+      }
+    });
+
+    // Save the updated state
+    _saveCompletedSteps();
+
+    // Reset and start animation
+    _animationController.reset();
+    _animationController.forward();
   }
 
   Future<void> _fetchAllRecipeData() async {
@@ -135,7 +190,7 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
     if (recipe == null) return const SizedBox.shrink();
 
     final analyzedInstructions = recipe!['analyzedInstructions'] as List?;
-    
+
     if (analyzedInstructions == null || analyzedInstructions.isEmpty) {
       return Card(
         margin: const EdgeInsets.all(8.0),
@@ -171,10 +226,12 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 TextButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
+                    await HapticFeedback.heavyImpact();
                     setState(() {
                       completedSteps.clear();
                     });
+                    _saveCompletedSteps();
                   },
                   icon: const Icon(Icons.refresh),
                   label: const Text('Reset Steps'),
@@ -193,15 +250,7 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
                 final isCompleted = completedSteps.contains(index);
 
                 return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (completedSteps.contains(index)) {
-                        completedSteps.remove(index);
-                      } else {
-                        completedSteps.add(index);
-                      }
-                    });
-                  },
+                  onTap: () => _toggleStepCompletion(index),
                   child: Container(
                     padding: const EdgeInsets.all(8.0),
                     decoration: BoxDecoration(
@@ -219,21 +268,22 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
                               width: 24,
                               height: 24,
                               decoration: BoxDecoration(
-                                color: isCompleted 
-                                  ? Colors.green 
-                                  : Theme.of(context).primaryColor,
+                                color: isCompleted
+                                    ? Colors.green
+                                    : Theme.of(context).primaryColor,
                                 shape: BoxShape.circle,
                               ),
                               child: Center(
                                 child: isCompleted
-                                  ? const Icon(Icons.check, size: 16, color: Colors.white)
-                                  : Text(
-                                      '${index + 1}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
+                                    ? const Icon(Icons.check,
+                                        size: 16, color: Colors.white)
+                                    : Text(
+                                        '${index + 1}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
-                                    ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -245,12 +295,11 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
                                     step['step'],
                                     style: TextStyle(
                                       fontSize: 16,
-                                      decoration: isCompleted 
-                                        ? TextDecoration.lineThrough 
-                                        : null,
-                                      color: isCompleted 
-                                        ? Colors.grey[600] 
-                                        : null,
+                                      decoration: isCompleted
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      color:
+                                          isCompleted ? Colors.grey[600] : null,
                                     ),
                                   ),
                                   if (step['length'] != null) ...[
@@ -269,7 +318,8 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
                                       ],
                                     ),
                                   ],
-                                  if (equipment != null && equipment.isNotEmpty) ...[
+                                  if (equipment != null &&
+                                      equipment.isNotEmpty) ...[
                                     const SizedBox(height: 8),
                                     Wrap(
                                       spacing: 8,
@@ -286,7 +336,8 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
                                       }).toList(),
                                     ),
                                   ],
-                                  if (ingredients != null && ingredients.isNotEmpty) ...[
+                                  if (ingredients != null &&
+                                      ingredients.isNotEmpty) ...[
                                     const SizedBox(height: 8),
                                     Wrap(
                                       spacing: 8,
@@ -318,6 +369,36 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildProgressFAB() {
+    if (recipe == null) return const SizedBox.shrink();
+
+    final totalSteps = recipe!['analyzedInstructions'][0]['steps'].length;
+    final completedCount = completedSteps.length;
+    final progress = totalSteps > 0 ? completedCount / totalSteps : 0.0;
+
+    return FloatingActionButton.extended(
+      onPressed: null,
+      label: Text('$completedCount/$totalSteps steps'),
+      icon: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.white24,
+            color: Colors.white,
+          ),
+          Text(
+            '${(progress * 100).round()}%',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -462,6 +543,7 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
       appBar: AppBar(
         title: Text(recipe?['title'] ?? 'Recipe Details'),
       ),
+      floatingActionButton: _buildProgressFAB(),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
