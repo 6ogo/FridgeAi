@@ -134,11 +134,9 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
   Widget _buildInstructionsSection() {
     if (recipe == null) return const SizedBox.shrink();
 
-    // Parse the analyzedInstructions if available
     final analyzedInstructions = recipe!['analyzedInstructions'] as List?;
-
+    
     if (analyzedInstructions == null || analyzedInstructions.isEmpty) {
-      // Fallback to plain text instructions
       return Card(
         margin: const EdgeInsets.all(8.0),
         child: Padding(
@@ -165,9 +163,23 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Cooking Instructions',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Cooking Instructions',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      completedSteps.clear();
+                    });
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reset Steps'),
+                ),
+              ],
             ),
             const Divider(),
             ListView.builder(
@@ -178,95 +190,128 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
                 final step = analyzedInstructions[0]['steps'][index];
                 final equipment = step['equipment'] as List?;
                 final ingredients = step['ingredients'] as List?;
+                final isCompleted = completedSteps.contains(index);
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).primaryColor,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${index + 1}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (completedSteps.contains(index)) {
+                        completedSteps.remove(index);
+                      } else {
+                        completedSteps.add(index);
+                      }
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8.0),
+                    decoration: BoxDecoration(
+                      color: isCompleted ? Colors.grey[100] : null,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Step number with completion indicator
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: isCompleted 
+                                  ? Colors.green 
+                                  : Theme.of(context).primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: isCompleted
+                                  ? const Icon(Icons.check, size: 16, color: Colors.white)
+                                  : Text(
+                                      '${index + 1}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  step['step'],
-                                  style: const TextStyle(fontSize: 16),
-                                ),
-                                if (step['length'] != null) ...[
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.timer, size: 16),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${step['length']['number']} ${step['length']['unit']}',
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 14,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    step['step'],
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      decoration: isCompleted 
+                                        ? TextDecoration.lineThrough 
+                                        : null,
+                                      color: isCompleted 
+                                        ? Colors.grey[600] 
+                                        : null,
+                                    ),
+                                  ),
+                                  if (step['length'] != null) ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.timer, size: 16),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${step['length']['number']} ${step['length']['unit']}',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 14,
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
+                                      ],
+                                    ),
+                                  ],
+                                  if (equipment != null && equipment.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      children: equipment.map<Widget>((e) {
+                                        return Chip(
+                                          avatar: Icon(
+                                            getEquipmentIcon(e['name']),
+                                            size: 16,
+                                            color: Colors.grey[700],
+                                          ),
+                                          label: Text(e['name']),
+                                          backgroundColor: Colors.grey[200],
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ],
+                                  if (ingredients != null && ingredients.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      children: ingredients.map<Widget>((i) {
+                                        return Chip(
+                                          avatar: const Icon(
+                                            Icons.food_bank,
+                                            size: 16,
+                                            color: Colors.green,
+                                          ),
+                                          label: Text(i['name']),
+                                          backgroundColor: Colors.green[100],
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ],
                                 ],
-                                if (equipment != null &&
-                                    equipment.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    children: equipment.map<Widget>((e) {
-                                      return Chip(
-                                        avatar:
-                                            const Icon(Icons.kitchen, size: 16),
-                                        label: Text(e['name']),
-                                        backgroundColor: Colors.grey[200],
-                                      );
-                                    }).toList(),
-                                  ),
-                                ],
-                                if (ingredients != null &&
-                                    ingredients.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    children: ingredients.map<Widget>((i) {
-                                      return Chip(
-                                        avatar: const Icon(Icons.food_bank,
-                                            size: 16),
-                                        label: Text(i['name']),
-                                        backgroundColor: Colors.green[100],
-                                      );
-                                    }).toList(),
-                                  ),
-                                ],
-                              ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      if (index < analyzedInstructions[0]['steps'].length - 1)
-                        const Divider(height: 24),
-                    ],
+                          ],
+                        ),
+                        if (index < analyzedInstructions[0]['steps'].length - 1)
+                          const Divider(height: 24),
+                      ],
+                    ),
                   ),
                 );
               },
