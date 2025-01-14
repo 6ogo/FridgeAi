@@ -22,35 +22,57 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
   }
 
   Future<void> _fetchRecipeDetails() async {
+    if (!mounted) return;
+    
     try {
-      final Map<String, dynamic> recipeDetails;
-      try {
-        recipeDetails = await ApiService.fetchRecipeDetails(widget.recipeId);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to fetch recipe details: $e')),
-          );
-        }
-        return;
-      }
-      if (mounted) {
-        setState(() {
-          recipe = recipeDetails;
-          isLoading = false;
-        });
-      }
+      final recipeDetails = await ApiService.fetchRecipeDetails(widget.recipeId);
+      if (!mounted) return;
+      
+      setState(() {
+        recipe = recipeDetails;
+        isLoading = false;
+      });
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to fetch recipe details: $e')),
+      if (!mounted) return;
+      
+      setState(() {
+        isLoading = false;
+      });
+      
+      // Store the context before the async gap
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('Failed to fetch recipe details: $e')),
+      );
+    }
+  }
+
+  Future<void> _launchURL(String url, ScaffoldMessengerState messenger) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (!mounted) return;
+        
+        messenger.showSnackBar(
+          SnackBar(content: Text('Could not launch $url')),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      
+      messenger.showSnackBar(
+        SnackBar(content: Text('Error launching URL: $e')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Get ScaffoldMessenger once at the start of build
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(recipe?['title'] ?? 'Recipe Details'),
@@ -62,21 +84,29 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Display Recipe Image
-                  if (recipe?['image'] != null) Image.network(recipe!['image']),
+                  if (recipe?['image'] != null) 
+                    Image.network(
+                      recipe!['image'],
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(
+                          child: Text('Failed to load image'),
+                        );
+                      },
+                    ),
                   const SizedBox(height: 20),
 
-                  // Display Ingredients
                   const Text(
                     'Ingredients:',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   ...recipe!['extendedIngredients']
-                      .map((ingredient) => Text('- ${ingredient['original']}'))
+                      .map<Widget>((ingredient) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Text('• ${ingredient['original']}'),
+                          ))
                       .toList(),
                   const SizedBox(height: 20),
 
-                  // Display Instructions
                   const Text(
                     'Instructions:',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -84,21 +114,15 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> {
                   Text(recipe?['instructions'] ?? 'No instructions available.'),
                   const SizedBox(height: 20),
 
-                  // Display Source URL
                   const Text(
                     'Source:',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  GestureDetector(
-                    onTap: () async {
+                  InkWell(
+                    onTap: () {
                       final url = recipe!['sourceUrl'];
-                      if (await canLaunchUrl(url)) {
-                        await launchUrl(Uri.parse(url));
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Could not launch $url')),
-                        );
-                      }
+                      // Pass the messenger to avoid BuildContext issues
+                      _launchURL(url, scaffoldMessenger);
                     },
                     child: Text(
                       recipe!['sourceUrl'],
