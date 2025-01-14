@@ -21,6 +21,8 @@ class HomePageState extends State<HomePage> {
       setState(() {
         _image = File(pickedFile.path);
       });
+      // Ensure the widget is still mounted before navigating
+      if (!mounted) return;
       // Navigate to the results page with the selected image
       Navigator.push(
         context,
