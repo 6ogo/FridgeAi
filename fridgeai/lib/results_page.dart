@@ -39,10 +39,10 @@ class ResultsPageState extends State<ResultsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Recipe Suggestions'),
+        title: const Text('Recipe Suggestions'),
       ),
       body: isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
                 Text('Detected Ingredients: ${ingredients!.join(", ")}'),
