@@ -17,33 +17,49 @@ class ApiService {
         'Authorization': 'Bearer $apiKey',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'image': base64Image}),
+      body: jsonEncode({
+        'image': base64Image,
+        'prompt': 'What are these ingredients? Return only a comma-separated list of ingredient names.',
+      }),
     );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return List<String>.from(data['ingredients']);
+      // Assuming the API returns a comma-separated list of ingredients
+      final ingredients = data['ingredients'].split(',');
+      return ingredients;
     } else {
       throw Exception('Failed to analyze image');
     }
   }
 
   static Future<List<dynamic>> fetchRecipes(List<String> ingredients) async {
-    const apiUrl = 'https://api.edamam.com/api/recipes/v2';
-    final appId = dotenv.env['EDAMAM_APP_ID'];
-    final appKey = dotenv.env['EDAMAM_APP_KEY'];
+    const apiUrl = 'https://api.spoonacular.com/recipes/findByIngredients';
+    final apiKey = dotenv.env['SPOONACULAR_API_KEY'];
 
     final response = await http.get(
-      Uri.parse(
-        '$apiUrl?type=public&q=${ingredients.join(",")}&app_id=$appId&app_key=$appKey',
-      ),
+      Uri.parse('$apiUrl?ingredients=${ingredients.join(",")}&apiKey=$apiKey'),
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['hits'].map((hit) => hit['recipe']).toList();
+      return jsonDecode(response.body);
     } else {
       throw Exception('Failed to fetch recipes');
+    }
+  }
+
+  static Future<Map<String, dynamic>> fetchRecipeDetails(int recipeId) async {
+    final apiUrl = 'https://api.spoonacular.com/recipes/$recipeId/information';
+    final apiKey = dotenv.env['SPOONACULAR_API_KEY'];
+
+    final response = await http.get(
+      Uri.parse('$apiUrl?apiKey=$apiKey'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch recipe details');
     }
   }
 }
