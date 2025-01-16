@@ -6,7 +6,7 @@ import 'dart:io';
 
 void main() async {
   try {
-    await dotenv.load();  // Just use load() without fileName parameter
+    await dotenv.load();
     runApp(const MyApp());
   } catch (e) {
     if (kDebugMode) {
