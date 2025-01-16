@@ -14,7 +14,7 @@ class HomePage extends StatefulWidget {
 class HomePageState extends State<HomePage> {
   File? _image;
   bool _isProcessing = false;
-  
+
   Widget buildLoadingState() {
     return const Center(
       child: Column(
@@ -78,7 +78,10 @@ class HomePageState extends State<HomePage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => ResultsPage(recipes: recipes),
+                builder: (context) => ResultsPage(
+                  recipes: recipes,
+                  ingredients: ingredients, // Pass the list of ingredients here
+                ),
               ),
             );
           }
