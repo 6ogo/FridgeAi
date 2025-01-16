@@ -66,7 +66,10 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> fetchRecipes(List<String> ingredients) async {
+  static Future<List<dynamic>> fetchRecipes(
+    List<String> ingredients, {
+    int minUsedIngredients = 2, // Default to 2, but can be adjusted
+  }) async {
     const apiUrl = 'https://api.spoonacular.com/recipes/findByIngredients';
     final apiKey = dotenv.env['SPOONACULAR_API_KEY'];
 
@@ -77,10 +80,9 @@ class ApiService {
     final queryParams = {
       'ingredients': ingredients.join(','),
       'apiKey': apiKey,
-      'number': '10',
-      'ranking': '2',
-      'ignorePantry': 'true',
-      // Added parameters
+      'number': '10', // Fetch up to 10 recipes
+      'ranking': '2', // Rank by ingredient matches
+      'ignorePantry': 'true', // Ignore pantry staples
       'limitLicense': 'false',
       'instructionsRequired': 'true',
     };
@@ -89,7 +91,12 @@ class ApiService {
     final response = await http.get(uri);
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      final data = jsonDecode(response.body) as List<dynamic>;
+      // Filter recipes based on the minimum number of used ingredients
+      return data
+          .where(
+              (recipe) => recipe['usedIngredientCount'] >= minUsedIngredients)
+          .toList();
     } else {
       throw Exception('Failed to fetch recipes: ${response.body}');
     }
