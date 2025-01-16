@@ -93,22 +93,6 @@ class HomePageState extends State<HomePage> {
     );
   }
 
-  Widget buildLoadingState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text(
-            'Analyzing your ingredients...',
-            style: TextStyle(fontSize: 16),
-          ),
-        ],
-      ),
-    );
-  }
-
   void showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -169,12 +153,22 @@ class HomePageState extends State<HomePage> {
           );
         }
       }
+    } on ApiException catch (e) {
+      // Handle no internet connection or API errors
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _errorMessage = e.message;
+        });
+        showError(e.message); // Show a SnackBar with the error message
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isProcessing = false;
           _errorMessage = 'Error: ${e.toString()}';
         });
+        showError('Error: ${e.toString()}'); // Show a SnackBar with the error message
       }
     }
   }
