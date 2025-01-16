@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'api_service.dart';
 
 class RecipeDetailsPage extends StatefulWidget {
@@ -12,14 +13,15 @@ class RecipeDetailsPage extends StatefulWidget {
   RecipeDetailsPageState createState() => RecipeDetailsPageState();
 }
 
-class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProviderStateMixin {
+class RecipeDetailsPageState extends State<RecipeDetailsPage>
+    with TickerProviderStateMixin {
   Map<String, dynamic>? recipe;
   Map<String, dynamic>? nutritionInfo;
   bool isLoading = true;
-  // Track completed steps
+  bool isRecipeSaved = false;
   Set<int> completedSteps = {};
+  Set<String> selectedIngredients = {};
 
-  // Map of equipment names to their corresponding icons
   final Map<String, IconData> equipmentIcons = {
     'oven': Icons.microwave,
     'pan': Icons.soup_kitchen,
@@ -41,18 +43,8 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
     'spatula': Icons.space_bar,
     'tongs': Icons.content_cut,
   };
-  late final AnimationController _animationController;
 
-  // Get the most appropriate icon for equipment
-  IconData getEquipmentIcon(String equipmentName) {
-    String lowercaseName = equipmentName.toLowerCase();
-    for (var entry in equipmentIcons.entries) {
-      if (lowercaseName.contains(entry.key)) {
-        return entry.value;
-      }
-    }
-    return Icons.kitchen; // Default icon
-  }
+  late final AnimationController _animationController;
 
   @override
   void initState() {
@@ -63,6 +55,8 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
     );
     _loadCompletedSteps();
     _fetchAllRecipeData();
+    _checkIfRecipeSaved();
+    _loadSelectedIngredients();
   }
 
   @override
@@ -71,7 +65,76 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
     super.dispose();
   }
 
-// Load completed steps from SharedPreferences
+  Future<void> _checkIfRecipeSaved() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedRecipes = prefs.getStringList('saved_recipes') ?? [];
+    setState(() {
+      isRecipeSaved = savedRecipes.any((recipeJson) {
+        final recipe = json.decode(recipeJson);
+        return recipe['id'] == widget.recipeId;
+      });
+    });
+  }
+
+  Future<void> _toggleSaveRecipe() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedRecipes = prefs.getStringList('saved_recipes') ?? [];
+
+    if (isRecipeSaved) {
+      final updatedRecipes = savedRecipes.where((recipeJson) {
+        final recipe = json.decode(recipeJson);
+        return recipe['id'] != widget.recipeId;
+      }).toList();
+      await prefs.setStringList('saved_recipes', updatedRecipes);
+    } else {
+      if (recipe != null) {
+        final recipeJson = json.encode({
+          'id': widget.recipeId,
+          'title': recipe!['title'],
+          'image': recipe!['image'],
+          'readyInMinutes': recipe!['readyInMinutes'],
+        });
+        savedRecipes.add(recipeJson);
+        await prefs.setStringList('saved_recipes', savedRecipes);
+      }
+    }
+
+    setState(() {
+      isRecipeSaved = !isRecipeSaved;
+    });
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            isRecipeSaved ? 'Recipe saved!' : 'Recipe removed from saved list'),
+        duration: const Duration(seconds: 2),
+        action: SnackBarAction(
+          label: 'UNDO',
+          onPressed: _toggleSaveRecipe,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadSelectedIngredients() async {
+    final prefs = await SharedPreferences.getInstance();
+    final selected =
+        prefs.getStringList('selected_ingredients_${widget.recipeId}') ?? [];
+    setState(() {
+      selectedIngredients = selected.toSet();
+    });
+  }
+
+  Future<void> _saveSelectedIngredients() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      'selected_ingredients_${widget.recipeId}',
+      selectedIngredients.toList(),
+    );
+  }
+
   Future<void> _loadCompletedSteps() async {
     final prefs = await SharedPreferences.getInstance();
     final savedSteps =
@@ -83,7 +146,6 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
     }
   }
 
-// Save completed steps to SharedPreferences
   Future<void> _saveCompletedSteps() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(
@@ -92,9 +154,7 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
     );
   }
 
-// Toggle step completion with animation and haptic feedback
   void _toggleStepCompletion(int index) async {
-    // Haptic feedback
     await HapticFeedback.mediumImpact();
 
     setState(() {
@@ -105,10 +165,7 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
       }
     });
 
-    // Save the updated state
     _saveCompletedSteps();
-
-    // Reset and start animation
     _animationController.reset();
     _animationController.forward();
   }
@@ -140,8 +197,158 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
     }
   }
 
-  Widget _buildNutritionSection() {
-    if (nutritionInfo == null) return const SizedBox.shrink();
+  IconData getEquipmentIcon(String equipmentName) {
+    String lowercaseName = equipmentName.toLowerCase();
+    for (var entry in equipmentIcons.entries) {
+      if (lowercaseName.contains(entry.key)) {
+        return entry.value;
+      }
+    }
+    return Icons.kitchen;
+  }
+
+  Widget _buildShoppingListButton() {
+    if (recipe == null) return const SizedBox.shrink();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: ListTile(
+        leading: const Icon(Icons.shopping_cart, color: Colors.blue),
+        title: const Text('Shopping List'),
+        subtitle: Text(
+            '${selectedIngredients.length}/${recipe!['extendedIngredients'].length} items selected'),
+        trailing: const Icon(Icons.arrow_forward_ios),
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            builder: (context) => DraggableScrollableSheet(
+              initialChildSize: 0.9,
+              minChildSize: 0.5,
+              maxChildSize: 0.9,
+              builder: (_, controller) => Container(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Shopping List',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              selectedIngredients.clear();
+                            });
+                            _saveSelectedIngredients();
+                            Navigator.pop(context);
+                          },
+                          icon: const Icon(Icons.clear_all),
+                          label: const Text('Clear All'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: controller,
+                        itemCount: recipe!['extendedIngredients'].length,
+                        itemBuilder: (context, index) {
+                          final ingredient =
+                              recipe!['extendedIngredients'][index];
+                          final isSelected = selectedIngredients
+                              .contains(ingredient['id'].toString());
+
+                          return CheckboxListTile(
+                            value: isSelected,
+                            onChanged: (bool? value) {
+                              setState(() {
+                                if (value == true) {
+                                  selectedIngredients
+                                      .add(ingredient['id'].toString());
+                                } else {
+                                  selectedIngredients
+                                      .remove(ingredient['id'].toString());
+                                }
+                              });
+                              _saveSelectedIngredients();
+                            },
+                            title: Text(ingredient['original']),
+                            subtitle: Text(
+                              '${ingredient['measures']['metric']['amount']} ${ingredient['measures']['metric']['unitShort']}',
+                            ),
+                            secondary: Icon(
+                              Icons.shopping_basket,
+                              color: isSelected ? Colors.green : Colors.grey,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _nutritionItem(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: Theme.of(context).primaryColor),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _buildProgressFAB() {
+    if (recipe == null) return const SizedBox.shrink();
+
+    final analyzedInstructions = recipe!['analyzedInstructions'] as List?;
+    if (analyzedInstructions == null || analyzedInstructions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final totalSteps = analyzedInstructions[0]['steps'].length;
+    final completedCount = completedSteps.length;
+    final progress = totalSteps > 0 ? completedCount / totalSteps : 0.0;
+
+    return FloatingActionButton.extended(
+      onPressed: null,
+      label: Text('$completedCount/$totalSteps steps'),
+      icon: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.white24,
+            color: Colors.white,
+          ),
+          Text(
+            '${(progress * 100).round()}%',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDietaryInfo() {
+    if (recipe == null) return const SizedBox.shrink();
 
     return Card(
       margin: const EdgeInsets.all(8.0),
@@ -151,32 +358,63 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Nutrition Facts',
+              'Dietary Information',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const Divider(),
+            Wrap(
+              spacing: 8.0,
+              children: [
+                if (recipe!['vegetarian'] == true)
+                  _dietaryChip('Vegetarian', Colors.green),
+                if (recipe!['vegan'] == true)
+                  _dietaryChip('Vegan', Colors.green),
+                if (recipe!['glutenFree'] == true)
+                  _dietaryChip('Gluten Free', Colors.orange),
+                if (recipe!['dairyFree'] == true)
+                  _dietaryChip('Dairy Free', Colors.blue),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildHealthScore(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCookingInfo() {
+    if (recipe == null) return const SizedBox.shrink();
+
+    return Card(
+      margin: const EdgeInsets.all(8.0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Cooking Information',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const Divider(),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _nutritionItem(
-                  'Calories',
-                  nutritionInfo!['calories'] ?? '0',
-                  Icons.local_fire_department,
+                _cookingInfoItem(
+                  'Prep Time',
+                  '${recipe!['preparationMinutes'] ?? 0} min',
+                  Icons.access_time,
                 ),
-                _nutritionItem(
-                  'Protein',
-                  nutritionInfo!['protein'] ?? '0g',
-                  Icons.fitness_center,
+                _cookingInfoItem(
+                  'Cook Time',
+                  '${recipe!['cookingMinutes'] ?? 0} min',
+                  Icons.outdoor_grill,
                 ),
-                _nutritionItem(
-                  'Carbs',
-                  nutritionInfo!['carbs'] ?? '0g',
-                  Icons.grain,
-                ),
-                _nutritionItem(
-                  'Fat',
-                  nutritionInfo!['fat'] ?? '0g',
-                  Icons.opacity,
+                _cookingInfoItem(
+                  'Servings',
+                  '${recipe!['servings'] ?? 1}',
+                  Icons.people,
                 ),
               ],
             ),
@@ -263,7 +501,6 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Step number with completion indicator
                             Container(
                               width: 24,
                               height: 24,
@@ -302,22 +539,6 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
                                           isCompleted ? Colors.grey[600] : null,
                                     ),
                                   ),
-                                  if (step['length'] != null) ...[
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.timer, size: 16),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${step['length']['number']} ${step['length']['unit']}',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
                                   if (equipment != null &&
                                       equipment.isNotEmpty) ...[
                                     const SizedBox(height: 8),
@@ -359,80 +580,12 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
                             ),
                           ],
                         ),
-                        if (index < analyzedInstructions[0]['steps'].length - 1)
-                          const Divider(height: 24),
                       ],
                     ),
                   ),
                 );
               },
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProgressFAB() {
-    if (recipe == null) return const SizedBox.shrink();
-
-    final totalSteps = recipe!['analyzedInstructions'][0]['steps'].length;
-    final completedCount = completedSteps.length;
-    final progress = totalSteps > 0 ? completedCount / totalSteps : 0.0;
-
-    return FloatingActionButton.extended(
-      onPressed: null,
-      label: Text('$completedCount/$totalSteps steps'),
-      icon: Stack(
-        alignment: Alignment.center,
-        children: [
-          CircularProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.white24,
-            color: Colors.white,
-          ),
-          Text(
-            '${(progress * 100).round()}%',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDietaryInfo() {
-    if (recipe == null) return const SizedBox.shrink();
-
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Dietary Information',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const Divider(),
-            Wrap(
-              spacing: 8.0,
-              children: [
-                if (recipe!['vegetarian'] == true)
-                  _dietaryChip('Vegetarian', Colors.green),
-                if (recipe!['vegan'] == true)
-                  _dietaryChip('Vegan', Colors.green),
-                if (recipe!['glutenFree'] == true)
-                  _dietaryChip('Gluten Free', Colors.orange),
-                if (recipe!['dairyFree'] == true)
-                  _dietaryChip('Dairy Free', Colors.blue),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildHealthScore(),
           ],
         ),
       ),
@@ -464,58 +617,6 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
     );
   }
 
-  Widget _buildCookingInfo() {
-    if (recipe == null) return const SizedBox.shrink();
-
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Cooking Information',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _cookingInfoItem(
-                  'Prep Time',
-                  '${recipe!['preparationMinutes']} min',
-                  Icons.access_time,
-                ),
-                _cookingInfoItem(
-                  'Cook Time',
-                  '${recipe!['cookingMinutes']} min',
-                  Icons.outdoor_grill,
-                ),
-                _cookingInfoItem(
-                  'Servings',
-                  '${recipe!['servings']}',
-                  Icons.people,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _nutritionItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: Theme.of(context).primaryColor),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(fontSize: 12)),
-      ],
-    );
-  }
-
   Widget _cookingInfoItem(String label, String value, IconData icon) {
     return Column(
       children: [
@@ -537,11 +638,69 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
     );
   }
 
+  // Existing widget build methods remain the same
+  Widget _buildNutritionSection() {
+    if (nutritionInfo == null) return const SizedBox.shrink();
+
+    return Card(
+      margin: const EdgeInsets.all(8.0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Nutrition Facts',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _nutritionItem(
+                  'Calories',
+                  nutritionInfo!['calories'] ?? '0',
+                  Icons.local_fire_department,
+                ),
+                _nutritionItem(
+                  'Protein',
+                  nutritionInfo!['protein'] ?? '0g',
+                  Icons.fitness_center,
+                ),
+                _nutritionItem(
+                  'Carbs',
+                  nutritionInfo!['carbs'] ?? '0g',
+                  Icons.grain,
+                ),
+                _nutritionItem(
+                  'Fat',
+                  nutritionInfo!['fat'] ?? '0g',
+                  Icons.opacity,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ... [Previous _buildInstructionsSection(), _buildProgressFAB(), etc. remain the same] ...
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(recipe?['title'] ?? 'Recipe Details'),
+        actions: [
+          IconButton(
+            icon: Icon(
+              isRecipeSaved ? Icons.bookmark : Icons.bookmark_border,
+              color: isRecipeSaved ? Colors.yellow : null,
+            ),
+            onPressed: _toggleSaveRecipe,
+          ),
+        ],
       ),
       floatingActionButton: _buildProgressFAB(),
       body: isLoading
@@ -552,48 +711,88 @@ class RecipeDetailsPageState extends State<RecipeDetailsPage> with TickerProvide
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (recipe?['image'] != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8.0),
-                      child: Image.network(
-                        recipe!['image'],
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Text('Failed to load image'),
-                          );
-                        },
-                      ),
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8.0),
+                          child: Image.network(
+                            recipe!['image'],
+                            height: 200,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Center(
+                                child: Text('Failed to load image'),
+                              );
+                            },
+                          ),
+                        ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.access_time,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${recipe!['readyInMinutes']} min',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   const SizedBox(height: 16),
+                  _buildShoppingListButton(),
                   _buildNutritionSection(),
                   _buildDietaryInfo(),
                   _buildCookingInfo(),
                   _buildInstructionsSection(),
-
-                  // Original content
+                  const SizedBox(height: 16),
+                  // Ingredients section
                   const Text(
                     'Ingredients:',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  ...recipe!['extendedIngredients']
-                      .map<Widget>((ingredient) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.fiber_manual_record, size: 8),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(ingredient['original']),
-                                ),
-                              ],
-                            ),
-                          ))
-                      .toList(),
+                  if (recipe != null)
+                    ...recipe!['extendedIngredients']
+                        .map<Widget>((ingredient) => Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.fiber_manual_record,
+                                      size: 8),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(ingredient['original']),
+                                  ),
+                                ],
+                              ),
+                            ))
+                        .toList(),
                   const SizedBox(height: 16),
-
+                  // Instructions section
                   const Text(
                     'Instructions:',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
