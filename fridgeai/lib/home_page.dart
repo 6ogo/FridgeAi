@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fridgeai/saved_recipies_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'results_page.dart';
@@ -64,6 +65,19 @@ class HomePageState extends State<HomePage> {
               ),
               textStyle: const TextStyle(fontSize: 18),
             ),
+          ),
+          const SizedBox(height: 20),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SavedRecipesPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.bookmark),
+            label: const Text('View Saved Recipes'),
           ),
           if (_errorMessage != null)
             Padding(
@@ -203,6 +217,19 @@ class HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text('Recipe Finder'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bookmark),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SavedRecipesPage(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: _buildHomeContent(),
     );
