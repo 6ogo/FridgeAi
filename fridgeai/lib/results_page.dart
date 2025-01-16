@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fridgeai/ingredients_page.dart';
+import 'package:fridgeai/saved_recipies_page.dart';
 import 'recipe_details_page.dart';
 
 class ResultsPage extends StatefulWidget {
@@ -126,6 +127,17 @@ class ResultsPageState extends State<ResultsPage> {
                 MaterialPageRoute(
                   builder: (context) =>
                       IngredientsPage(ingredients: widget.ingredients),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.bookmark),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SavedRecipesPage(),
                 ),
               );
             },
