@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
   static Future<List<String>> analyzeImage(File imageFile) async {
+    // Correct API endpoint for Groq
     const apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
     final apiKey = dotenv.env['GROQ_API_KEY'];
 
@@ -12,40 +13,48 @@ class ApiService {
       throw Exception('GROQ_API_KEY not found in environment variables');
     }
 
+    // Read the image file and encode it as base64
     final bytes = await imageFile.readAsBytes();
     final base64Image = base64Encode(bytes);
 
+    // Prepare the request payload
+    final payload = {
+      'model':
+          'llama-3.2-11b-vision-preview', // Use the correct model name from Groq's documentation
+      'messages': [
+        {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'text',
+              'text':
+                  'List all the ingredients you can see in this image. Return only a comma-separated list of ingredient names, nothing else.'
+            },
+            {
+              'type': 'image_url',
+              'image_url': {'url': 'data:image/jpeg;base64,$base64Image'}
+            }
+          ]
+        }
+      ],
+      'max_tokens': 150, // Adjust as needed
+    };
+
+    // Make the API request
     final response = await http.post(
       Uri.parse(apiUrl),
       headers: {
         'Authorization': 'Bearer $apiKey',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({
-        'model': 'llama-3.2-11b-vision-preview',
-        'messages': [
-          {
-            'role': 'user',
-            'content': [
-              {
-                'type': 'text',
-                'text':
-                    'List all the ingredients you can see in this image. Return only a comma-separated list of ingredient names, nothing else.'
-              },
-              {
-                'type': 'image',
-                'image_url': {'url': 'data:image/jpeg;base64,$base64Image'}
-              }
-            ]
-          }
-        ],
-        'max_tokens': 150
-      }),
+      body: jsonEncode(payload),
     );
 
+    // Handle the response
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final content = data['choices'][0]['message']['content'] as String;
+
       // Clean up the response and split into a list
       return content
           .split(',')
