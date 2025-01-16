@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fridgeai/ingredients_page.dart';
 import 'recipe_details_page.dart';
 
 class ResultsPage extends StatefulWidget {
@@ -16,24 +17,99 @@ class ResultsPage extends StatefulWidget {
 }
 
 class ResultsPageState extends State<ResultsPage> {
-  int minUsedIngredients = 2; // Default filter
-  List<dynamic> filteredRecipes = [];
+  int minUsedIngredients = 2;
+  late List<dynamic> filteredRecipes;
+  bool isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    filteredRecipes = widget.recipes
-        .where((recipe) => recipe['usedIngredientCount'] >= minUsedIngredients)
-        .toList();
+    _filterRecipes();
   }
 
-  void _updateFilter(int value) {
+  void _filterRecipes() {
     setState(() {
-      minUsedIngredients = value;
       filteredRecipes = widget.recipes
-          .where((recipe) => recipe['usedIngredientCount'] >= value)
+          .where(
+              (recipe) => recipe['usedIngredientCount'] >= minUsedIngredients)
           .toList();
     });
+  }
+
+  Widget _buildRecipeCard(dynamic recipe) {
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (recipe['image'] != null)
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(4)),
+              child: Image.network(
+                recipe['image'],
+                height: 200,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 200,
+                    color: Colors.grey[300],
+                    child: const Icon(Icons.error),
+                  );
+                },
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  recipe['title'],
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.green[600],
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${recipe['usedIngredientCount']} matching ingredients',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            RecipeDetailsPage(recipeId: recipe['id']),
+                      ),
+                    );
+                  },
+                  child: const Text('View Recipe'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -43,88 +119,50 @@ class ResultsPageState extends State<ResultsPage> {
         title: const Text('Recipe Suggestions'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.list), // Button to view ingredients
+            icon: const Icon(Icons.list),
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => IngredientsPage(
-                    ingredients: widget.ingredients,
-                  ),
+                  builder: (context) =>
+                      IngredientsPage(ingredients: widget.ingredients),
                 ),
               );
             },
           ),
           PopupMenuButton<int>(
-            onSelected: _updateFilter,
+            onSelected: (value) {
+              setState(() {
+                minUsedIngredients = value;
+                _filterRecipes();
+              });
+            },
             itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 1,
-                child: Text('Show recipes with at least 1 matching ingredient'),
-              ),
-              const PopupMenuItem(
-                value: 2,
-                child:
-                    Text('Show recipes with at least 2 matching ingredients'),
-              ),
-              const PopupMenuItem(
-                value: 3,
-                child:
-                    Text('Show recipes with at least 3 matching ingredients'),
-              ),
-              const PopupMenuItem(
-                value: 0,
-                child: Text('Show all recipes'),
-              ),
+              for (var i = 0; i <= 3; i++)
+                PopupMenuItem(
+                  value: i,
+                  child: Text(
+                    i == 0
+                        ? 'Show all recipes'
+                        : 'Show recipes with at least $i matching ingredients',
+                  ),
+                ),
             ],
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          // Implement refresh logic
-        },
-        child: ListView.builder(
-          itemCount: filteredRecipes.length,
-          itemBuilder: (context, index) {
-            final recipe = filteredRecipes[index];
-            return Card(
-              margin: const EdgeInsets.all(8.0),
-              child: Column(
-                children: [
-                  if (recipe['image'] != null)
-                    Image.network(
-                      recipe['image'],
-                      height: 200,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-                  ListTile(
-                    title: Text(
-                      recipe['title'],
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      'Matching Ingredients: ${recipe['usedIngredientCount']}',
-                    ),
-                    trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => RecipeDetailsPage(
-                            recipeId: recipe['id'],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+      body: filteredRecipes.isEmpty
+          ? const Center(
+              child: Text(
+                'No recipes found with the selected criteria',
+                style: TextStyle(fontSize: 16),
               ),
-            );
-          },
-        ),
-      ),
+            )
+          : ListView.builder(
+              itemCount: filteredRecipes.length,
+              itemBuilder: (context, index) =>
+                  _buildRecipeCard(filteredRecipes[index]),
+            ),
     );
   }
 }

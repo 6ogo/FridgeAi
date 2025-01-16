@@ -14,6 +14,70 @@ class HomePage extends StatefulWidget {
 class HomePageState extends State<HomePage> {
   File? _image;
   bool _isProcessing = false;
+  String? _errorMessage;
+
+  Widget _buildHomeContent() {
+    if (_isProcessing) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 20),
+            Text(
+              'Analyzing ingredients...',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.camera_alt,
+            size: 80,
+            color: Colors.blue,
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Take a photo of your ingredients',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'We\'ll suggest recipes based on what you have',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+          const SizedBox(height: 30),
+          ElevatedButton.icon(
+            onPressed: _showImageSourceDialog,
+            icon: const Icon(Icons.add_a_photo),
+            label: const Text('Add Photo'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 30,
+                vertical: 15,
+              ),
+              textStyle: const TextStyle(fontSize: 18),
+            ),
+          ),
+          if (_errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.red),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget buildLoadingState() {
     return const Center(
@@ -49,6 +113,10 @@ class HomePageState extends State<HomePage> {
 
   Future<void> _getImage(ImageSource source) async {
     try {
+      setState(() {
+        _errorMessage = null;
+      });
+
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(
         source: source,
@@ -63,44 +131,36 @@ class HomePageState extends State<HomePage> {
           _isProcessing = true;
         });
 
-        try {
-          // Send the image to the Groq API
-          final ingredients = await ApiService.analyzeImage(_image!);
+        final ingredients = await ApiService.analyzeImage(_image!);
 
-          // Fetch recipes using the detected ingredients
-          final recipes = await ApiService.fetchRecipes(ingredients);
+        if (ingredients.isEmpty) {
+          throw Exception('No ingredients detected in the image');
+        }
 
-          if (mounted) {
-            setState(() {
-              _isProcessing = false;
-            });
+        final recipes = await ApiService.fetchRecipes(ingredients);
 
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ResultsPage(
-                  recipes: recipes,
-                  ingredients: ingredients, // Pass the list of ingredients here
-                ),
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ResultsPage(
+                recipes: recipes,
+                ingredients: ingredients,
               ),
-            );
-          }
-        } catch (e) {
-          if (mounted) {
-            setState(() {
-              _isProcessing = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error processing image: $e')),
-            );
-          }
+            ),
+          );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking image: $e')),
-        );
+        setState(() {
+          _isProcessing = false;
+          _errorMessage = 'Error: ${e.toString()}';
+        });
       }
     }
   }
@@ -141,35 +201,10 @@ class HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Fridge Recipe App'),
+        title: const Text('Recipe Finder'),
+        centerTitle: true,
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_isProcessing)
-              const Column(
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 20),
-                  Text('Analyzing ingredients...'),
-                ],
-              )
-            else
-              ElevatedButton.icon(
-                onPressed: _showImageSourceDialog,
-                icon: const Icon(Icons.add_a_photo),
-                label: const Text('Add Photo of Ingredients'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 15,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
+      body: _buildHomeContent(),
     );
   }
 }
