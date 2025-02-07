@@ -26,7 +26,7 @@ A Flutter-based mobile application that helps users discover recipes based on in
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/fridge-recipe-app.git
+   git clone https://github.com/6ogo/fridge-recipe-app.git
    cd fridge-recipe-app
    ```
 
